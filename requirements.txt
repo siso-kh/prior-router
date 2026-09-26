@@ -1,0 +1,4 @@
+pydantic_settings
+httpx
+langchain_openai
+langchain_core
