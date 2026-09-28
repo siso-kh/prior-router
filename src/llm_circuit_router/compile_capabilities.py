@@ -1,63 +1,71 @@
+"""Compile the raw benchmark snapshot into the capability lookup registry."""
+
+from __future__ import annotations
+
 import asyncio
-import json
 import os
-import datetime
+
 from src.llm_circuit_router.benchmarks_fetcher import LiveBenchmarkFetcher
+from src.llm_circuit_router.console import enable_utf8_console
+from src.llm_circuit_router.storage import (
+    CAPABILITIES_FILE,
+    RAW_BENCHMARKS_FILE,
+    JsonDict,
+    save_json,
+)
+from src.llm_circuit_router.timeutils import utc_now_iso
 
-# Config inputs matching your local raw metrics extraction dump
-RAW_SOURCE_FILE = "artificial_analysis_models.json"
-OUTPUT_CAPABILITIES_FILE = "model_capabilities.json"
 
-async def main():
-    print("🚀 Initializing Dynamic Capabilities Matrix Compiler...")
-    
-    # 1. Initialize our standalone scoring driver utility framework
+async def build_capability_catalog() -> JsonDict:
+    """Parse the raw snapshot into a standardized capability catalog."""
     fetcher = LiveBenchmarkFetcher()
-    
-    # Check if raw cache log copy exists on local disk
-    if not os.path.exists(RAW_SOURCE_FILE):
-        print(f"❌ Error: Raw benchmark snapshot cache file '{RAW_SOURCE_FILE}' missing.")
-        print("💡 Hint: Execute your cURL download or fetcher script first to dump raw metrics.")
-        return
-        
-    # 2. Extract and translate raw evaluations matrix profiles into unified 0-100 metrics
-    parsed_matrix = await fetcher.fetch_live_matrix(local_json_path=RAW_SOURCE_FILE)
-    
+    parsed_matrix = await fetcher.fetch_live_matrix(local_json_path=RAW_BENCHMARKS_FILE)
     if not parsed_matrix:
-        print("❌ Compilation Aborted: Could not parse structural records from target cache file.")
-        return
-        
-    print(f"📊 Compiling {len(parsed_matrix)} structured capability profile records mapping metrics...")
-    
-    timestamp = datetime.datetime.utcnow().isoformat() + "Z"
-    compiled_catalog = {}
-    
+        return {}
+
+    timestamp = utc_now_iso()
+    catalog: JsonDict = {}
     for slug, profile in parsed_matrix.items():
-        # Identify the best performance capability type natively
         scores = profile["scores"]
         best_domain = max(scores, key=scores.get)
-        
-        # Structure the final standardized profile blueprint layout entry
-        compiled_catalog[slug] = {
+
+        catalog[slug] = {
             "model_name": slug,
             "display_name": profile["name"],
-            "reliability_score": 1.0,  # Default baseline standing; hot-swapped by test routines later
+            # Baseline standing; the health-check stage overwrites this in the ledger.
+            "reliability_score": 1.0,
             "benchmarks": scores,
-            "inferred_specialization": best_domain if scores[best_domain] > 0.0 else "general",
+            "inferred_specialization": (
+                best_domain if scores[best_domain] > 0.0 else "general"
+            ),
             "pricing": profile["pricing"],
-            "last_updated": timestamp
+            "last_updated": timestamp,
         }
-        
-    # 3. Save the clean structural database matrix back to standard JSON records disk cache
-    try:
-        with open(OUTPUT_CAPABILITIES_FILE, "w", encoding="utf-8") as f:
-            json.dump(compiled_catalog, f, indent=2, ensure_ascii=False)
-        print(f"======================================================================")
-        print(f"✅ Success! Generated capabilities lookup registry index map.")
-        print(f"📂 Operational profiles saved inside: '{OUTPUT_CAPABILITIES_FILE}'")
-        print(f"======================================================================")
-    except Exception as e:
-        print(f"❌ Storage file system serialization error: {e}")
+    return catalog
 
-if __name__ == '__main__':
+
+async def main() -> None:
+    """Compile capabilities and persist them to ``model_capabilities.json``."""
+    print("🚀 Initializing Dynamic Capabilities Matrix Compiler...")
+
+    if not os.path.exists(RAW_BENCHMARKS_FILE):
+        print(f"❌ Error: raw benchmark snapshot '{RAW_BENCHMARKS_FILE}' missing.")
+        print("💡 Hint: run the raw benchmark fetcher first to dump the snapshot.")
+        return
+
+    catalog = await build_capability_catalog()
+    if not catalog:
+        print("❌ Compilation aborted: no structural records could be parsed.")
+        return
+
+    print(f"📊 Compiled {len(catalog)} structured capability profiles.")
+    save_json(CAPABILITIES_FILE, catalog)
+    print("=" * 70)
+    print("✅ Success! Generated capabilities lookup registry index map.")
+    print(f"📂 Operational profiles saved inside: '{CAPABILITIES_FILE}'")
+    print("=" * 70)
+
+
+if __name__ == "__main__":
+    enable_utf8_console()
     asyncio.run(main())

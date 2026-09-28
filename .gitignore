@@ -1,8 +1,23 @@
-__pycache__
-pyproject.toml
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
 
+# Virtual environments
+venv/
+.venv/
+
+# Tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local secrets
 .env
-venv
-.venv
 
+# Generated pipeline artifacts.
+# These are rebuilt on demand and may embed provider API keys, so they are never
+# committed. See the README for how to generate them.
 *.json
